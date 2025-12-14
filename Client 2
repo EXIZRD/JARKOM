@@ -1,0 +1,64 @@
+import socket
+import time
+
+# Ganti dengan IP Laptop B (Proxy)
+PROXY_IP = "IP_LAPTOP_B"
+
+# ==========================
+# TEST TCP
+# ==========================
+
+def test_tcp():
+    print("\n=== TCP TEST (Client 2) ===")
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((PROXY_IP, 8080))
+
+    http = "GET / HTTP/1.1\r\nHost: client2\r\n\r\n"
+    s.sendall(http.encode())
+
+    data = s.recv(4096).decode()
+    print("[TCP RESPONSE]\n", data)
+
+    s.close()
+
+
+# ==========================
+# TEST UDP QoS
+# ==========================
+
+def test_udp(packet_count=50):
+    print("\n=== UDP QoS TEST (Client 2) ===")
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    latencies = []
+    lost = 0
+
+    for i in range(packet_count):
+        msg = f"client2-ping-{i}".encode()
+        start = time.time()
+
+        s.sendto(msg, (PROXY_IP, 9090))
+        s.settimeout(1)
+
+        try:
+            data, _ = s.recvfrom(2048)
+            end = time.time()
+            latencies.append(end - start)
+        except socket.timeout:
+            lost += 1
+
+    if latencies:
+        avg_lat = sum(latencies)/len(latencies)
+        jitter = max(latencies) - min(latencies)
+        print("Average Latency:", avg_lat)
+        print("Jitter:", jitter)
+
+    print("Packet Loss:", (lost/packet_count)*100, "%")
+
+
+# ==========================
+# RUN
+# ==========================
+
+test_tcp()
+test_udp(100)
