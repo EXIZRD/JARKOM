@@ -1,69 +1,69 @@
 import socket
 import threading
+import os
 
-# KONFIGURASI PORT
-# Sesuaikan dengan forwarding rule di Proxy (Laptop B)
-# Misal: Proxy port 8080 -> forward ke Laptop A port 8000
-TCP_PORT = 8000 
-# Misal: Proxy port 9090 -> forward ke Laptop A port 9090
-UDP_PORT = 9090 
+# ================= K O N F I G U R A S I =================
+TCP_PORT = 8000     # Port Web Server
+UDP_PORT = 9090     # Port Echo/QoS Server
+HTML_FILE = "index.html"  # Nama file HTML lokal
+# =========================================================
 
-# ==========================================
-# 1. TCP SERVER (HTTP Handling)
-# ==========================================
+# --- 1. TCP SERVER (Serving HTML File) ---
 def run_tcp_server():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    # Allow reuse address agar tidak error "Address already in use" saat restart
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     
     try:
         server_socket.bind(('0.0.0.0', TCP_PORT))
         server_socket.listen(5)
-        print(f"[TCP] Web Server berjalan di port {TCP_PORT}...")
+        print(f"[TCP] Web Server jalan di port {TCP_PORT}. Melayani file: {HTML_FILE}")
         
         while True:
             client_sock, addr = server_socket.accept()
-            # Terima request (tidak perlu diparsing detail untuk tugas ini)
             request = client_sock.recv(1024).decode()
             
-            # Respon HTTP Sederhana
-            http_response = (
-                "HTTP/1.1 200 OK\r\n"
-                "Content-Type: text/html\r\n\r\n"
-                "<html><body><h1>Halo dari Laptop A (Web Server)!</h1></body></html>"
-            )
+            # Coba baca file HTML lokal
+            try:
+                with open(HTML_FILE, 'r', encoding='utf-8') as file:
+                    file_content = file.read()
+                
+                # Header HTTP 200 OK
+                response_header = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n"
+                response_data = response_header + file_content
+                
+            except FileNotFoundError:
+                # Jika file tidak ada, kirim 404
+                response_data = (
+                    "HTTP/1.1 404 Not Found\r\n"
+                    "Content-Type: text/html\r\n\r\n"
+                    "<h1>404 Error</h1><p>File html tidak ditemukan.</p>"
+                )
             
-            client_sock.sendall(http_response.encode())
+            # Kirim data ke client/proxy
+            client_sock.sendall(response_data.encode())
             client_sock.close()
             
     except Exception as e:
         print(f"[TCP Error] {e}")
 
-# ==========================================
-# 2. UDP SERVER (QoS Echo Reply)
-# ==========================================
+# --- 2. UDP SERVER (Echo Reply for QoS) ---
 def run_udp_server():
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     
     try:
         udp_socket.bind(('0.0.0.0', UDP_PORT))
-        print(f"[UDP] Echo Server berjalan di port {UDP_PORT}...")
+        print(f"[UDP] Echo Server jalan di port {UDP_PORT}...")
         
         while True:
-            # Terima paket dari Proxy/Client
             data, addr = udp_socket.recvfrom(2048)
-            
-            # Langsung kirim balik (Echo) agar Client bisa hitung Latency/Jitter
+            # Echo balik untuk tes latency/jitter
             udp_socket.sendto(data, addr)
             
     except Exception as e:
         print(f"[UDP Error] {e}")
 
-# ==========================================
-# MAIN EXECUTION
-# ==========================================
+# --- MAIN ---
 if __name__ == "__main__":
-    # Jalankan TCP dan UDP secara paralel (Threading)
     t1 = threading.Thread(target=run_tcp_server)
     t2 = threading.Thread(target=run_udp_server)
     
