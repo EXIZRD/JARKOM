@@ -1,0 +1,44 @@
+import socket, time
+
+PROXY_IP = "IP_LAPTOP_B"
+
+# ---------- TCP ----------
+def test_tcp():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((PROXY_IP, 8080))
+
+    req = "GET / HTTP/1.1\r\nHost: test\r\n\r\n"
+    s.send(req.encode())
+
+    data = s.recv(4096).decode()
+    print("[TCP RESULT]\n", data)
+    s.close()
+
+# ---------- UDP ----------
+def test_udp(n=50):
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    latencies = []
+    lost = 0
+
+    for i in range(n):
+        msg = f"ping-{i}".encode()
+        start = time.time()
+        s.sendto(msg, (PROXY_IP, 9090))
+
+        s.settimeout(1)
+        try:
+            resp, _ = s.recvfrom(1024)
+            end = time.time()
+            latencies.append(end - start)
+        except:
+            lost += 1
+
+    if latencies:
+        jitter = max(latencies) - min(latencies)
+        print("Avg Latency:", sum(latencies)/len(latencies))
+        print("Jitter:", jitter)
+
+    print("Packet Loss:", (lost/n)*100, "%")
+
+test_tcp()
+test_udp()
